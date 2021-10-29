@@ -1,0 +1,79 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+    - refs/heads/develop
+    - refs/heads/release
+
+pool:
+  vmImage: vs2017-win2016
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildArtifact
+       
+        steps:
+        - task: DotNetCoreCLI@2
+          displayName: 'Build project'
+          inputs:
+            projects: '**/*.csproj'
+            arguments: '--output publish_output --configuration Release'
+
+        - task: ArchiveFiles@2
+          displayName: 'Archive files'
+          inputs:
+            rootFolderOrFile: 'publish_output/'
+            includeRootFolder: false
+        - task: PublishPipelineArtifact@1
+          displayName: 'Publish Pipeline Artifact'
+          inputs:
+            targetPath: '$(Build.ArtifactStagingDirectory)'
+            artifact: drop
+
+  - stage: DEV
+    dependsOn: build
+    variables:
+      - group: MalaDev
+    jobs:
+      - job: ReleasetoDev
+        steps:
+
+        - task: DownloadPipelineArtifact@2
+          displayName: 'Download Pipeline Artifact'
+          inputs:
+            artifactName: drop
+
+        - task: AzureFunctionApp@1
+          inputs:
+            azureSubscription: 'MyPersonal (a8d51f28-b454-45d8-a322-1c5a2b5300c2)'
+            appType: 'functionApp'
+            appName: 'malatesting'
+            package: '$(Pipeline.Workspace)\*.zip'
+            appSettings: '-env $(env) -name $(name) -lastName $(lastName)'
+            deploymentMethod: 'zipDeploy'
+
+  - stage: QA
+    dependsOn: build
+    variables:
+      - group: MalaQA
+    jobs:
+      - job: ReleasetoQA
+        steps:
+        - task: DownloadPipelineArtifact@2
+          displayName: 'Download Pipeline Artifact'
+          inputs:
+            artifactName: drop
+            
+        - task: AzureFunctionApp@1
+          inputs:
+            azureSubscription: 'MyPersonal (a8d51f28-b454-45d8-a322-1c5a2b5300c2)'
+            appType: 'functionApp'
+            appName: 'malatestingqa'
+            package: '$(Pipeline.Workspace)\*.zip'
+            appSettings: '-env $(env) -name $(name) -lastName $(lastName)'
+            deploymentMethod: 'zipDeploy'
