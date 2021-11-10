@@ -1,0 +1,74 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: windows-latest
+
+stages:
+  - stage: Build
+
+    jobs:
+     - job: 
+       steps:
+          - task: CopyFiles@2
+            inputs:
+              Contents: |
+                **\*.json
+                !.vscode/**/*
+              TargetFolder: '$(Build.ArtifactStagingDirectory)' 
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: 'SarArtifact'
+              publishLocation: 'pipeline'
+
+
+
+  - stage: dev
+    variables:
+      env : 'dev'
+    jobs:
+     - job: 
+       steps:
+       - task: DownloadPipelineArtifact@2
+         inputs:
+           buildType: 'current'
+           artifactName: 'SarArtifact'
+           targetPath: '$(Build.ArtifactStagingDirectory)'
+        
+       - task: CmdLine@2
+         inputs:
+             script: |
+               cd $(Build.ArtifactStagingDirectory)
+                
+               dir
+        
+       - task: PowerShell@2
+         inputs:
+           targetType: 'inline'
+           script: |
+              copy "$(Build.ArtifactStagingDirectory)\parameters\$(env).parameters.json" "$(Build.ArtifactStagingDirectory)\parameters.json"
+              
+              rmdir "$(Build.ArtifactStagingDirectory)\parameters" -recurse -force
+
+       - task: ArchiveFiles@2
+         inputs:
+            rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/'
+            includeRootFolder: true
+            archiveType: 'zip'
+            archiveFile: '$(Build.ArtifactStagingDirectory)/Mala.zip'
+            replaceExistingArchive: true
+      
+       - task: PublishPipelineArtifact@1
+         inputs:
+           targetPath: '$(Build.ArtifactStagingDirectory)/Mala.zip'
+           artifact: 'Malaartifact'
+           publishLocation: 'pipeline'
+
+          
